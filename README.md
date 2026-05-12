@@ -1,6 +1,6 @@
 ## Como rodar
 
-1. Rode `npm run dev` na pasta frontend
+1. Rode `npm run dev`
 
 ## Fluxo da API
 
@@ -13,3 +13,5 @@
 ## Observacao importante
 
 Depois que a conta e ativada, a API devolve um `token` do seller. Esse token deve ser guardado porque os proximos logins podem exigir esse valor junto com e-mail e senha.
+
+Vitor Oliveira 2403060
