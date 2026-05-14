@@ -776,28 +776,24 @@ function App() {
 
                   <div className="dashboard-stats">
                     <div className="stat-card stat-green">
-                      <span className="stat-icon">🛒</span>
                       <div className="stat-body">
                         <span className="stat-value">{dashTotalSales}</span>
                         <span className="stat-label">Vendas realizadas</span>
                       </div>
                     </div>
                     <div className="stat-card stat-orange">
-                      <span className="stat-icon">💰</span>
                       <div className="stat-body">
                         <span className="stat-value stat-value-md">{formatCurrency(dashTotalRevenue)}</span>
                         <span className="stat-label">Faturamento total</span>
                       </div>
                     </div>
                     <div className="stat-card stat-teal">
-                      <span className="stat-icon">📦</span>
                       <div className="stat-body">
                         <span className="stat-value">{dashActiveProducts}</span>
                         <span className="stat-label">Produtos ativos</span>
                       </div>
                     </div>
                     <div className={`stat-card ${dashOutOfStock > 0 ? 'stat-danger' : 'stat-teal'}`}>
-                      <span className="stat-icon">{dashOutOfStock > 0 ? '⚠️' : '✅'}</span>
                       <div className="stat-body">
                         <span className="stat-value">{dashOutOfStock}</span>
                         <span className="stat-label">Sem estoque</span>
