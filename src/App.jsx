@@ -143,6 +143,8 @@ function App() {
   const [isPending, startTransition] = useTransition();
   const [sales, setSales] = useState([]);
   const [salesLoading, setSalesLoading] = useState(false);
+  const [activeSection, setActiveSection] = useState('dashboard');
+  const [authStep, setAuthStep] = useState('login');
   const [editingSaleId, setEditingSaleId] = useState(null);
   const [saleEditForm, setSaleEditForm] = useState(EMPTY_SALE_EDIT_FORM);
   const [profileForm, setProfileForm] = useState(EMPTY_PROFILE_FORM);
@@ -406,13 +408,14 @@ function App() {
       setRegisterForm(EMPTY_REGISTER_FORM);
       setActivateForm((currentValue) => ({
         ...currentValue,
-        celular: data.seller?.celular || currentValue.celular,
+        celular: data.seller?.celular || registerForm.celular || currentValue.celular,
       }));
       setLoginForm((currentValue) => ({
         ...currentValue,
         email: data.seller?.email || currentValue.email,
       }));
-      showFeedback('success', data.message || 'Seller cadastrado com sucesso.');
+      showFeedback('success', data.message || 'Cadastro realizado! Verifique seu WhatsApp.');
+      setAuthStep('activate');
     });
   }
 
@@ -664,6 +667,8 @@ function App() {
     setSaleForm(EMPTY_SALE_FORM);
     resetSaleEditor();
     setShowProfileEditor(false);
+    setActiveSection('dashboard');
+    setAuthStep('login');
     showFeedback('neutral', 'Sessao encerrada neste navegador.');
   }
 
@@ -692,710 +697,632 @@ function App() {
   })();
   const dashMaxRevenue = dashTopProducts[0]?.value || 1;
 
+  const sectionTitles = { dashboard: 'Dashboard', products: 'Produtos', sales: 'Vendas', profile: 'Meu Perfil' };
+  const sellerInitials = (session.seller?.nome || 'S').split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
   return (
     <div className="page-shell">
       <div className="page-glow page-glow-left" />
       <div className="page-glow page-glow-right" />
 
-      <main className="app">
-        <h1 className="app-title">
-          {session.seller?.nome || 'Mercadinho 🚽🪠'}
-        </h1>
+      {session.accessToken ? (
+        <div className="dashboard-layout">
 
-              <button className="danger-button" type="button" onClick={handleLogout}>
-                Sair
-              </button>
-
-        {feedback.text ? (
-          <div className={`feedback-banner feedback-${feedback.tone}`}>{feedback.text}</div>
-        ) : null}
-
-        {!session.accessToken ? (
-        <section className="content-grid">
-
-          <article className="panel auth-panel">
-            <div className="panel-heading">
-              <div>
-                <span className="panel-kicker">Autenticacao</span>
-                <h2>Conta do Seller</h2>
-              </div>
+          {/* ── SIDEBAR ── */}
+          <aside className="app-sidebar">
+            <div className="sidebar-brand">
+              <span className="sidebar-logo">Mercadinho</span>
+              <span className="sidebar-tagline">Gestao de vendas</span>
             </div>
 
-            <div className="auth-grid">
-              <form className="form-card" onSubmit={handleRegisterSubmit}>
-                <h3>Cadastrar seller</h3>
-                <label className="field">
-                  <span>Nome do mercado</span>
-                  <input
-                    value={registerForm.nome}
-                    onChange={(event) => updateRegisterField('nome', event.target.value)}
-                    placeholder="Mercadinho Central"
-                  />
-                </label>
-                <label className="field">
-                  <span>CNPJ</span>
-                  <input
-                    value={registerForm.cnpj}
-                    onChange={(event) => updateRegisterField('cnpj', event.target.value)}
-                    placeholder="12345678000199"
-                  />
-                </label>
-                <label className="field">
-                  <span>E-mail</span>
-                  <input
-                    type="email"
-                    value={registerForm.email}
-                    onChange={(event) => updateRegisterField('email', event.target.value)}
-                    placeholder="mercado@email.com"
-                  />
-                </label>
-                <label className="field">
-                  <span>Celular</span>
-                  <input
-                    value={registerForm.celular}
-                    onChange={(event) => updateRegisterField('celular', event.target.value)}
-                    placeholder="11999999999"
-                  />
-                </label>
-                <label className="field">
-                  <span>Senha</span>
-                  <input
-                    type="password"
-                    value={registerForm.senha}
-                    onChange={(event) => updateRegisterField('senha', event.target.value)}
-                    placeholder="Sua senha"
-                  />
-                </label>
-
-                <button className="primary-button" disabled={busyAction === 'register'} type="submit">
-                  {busyAction === 'register' ? 'Cadastrando...' : 'Cadastrar'}
-                </button>
-              </form>
-
-              <form className="form-card" onSubmit={handleActivateSubmit}>
-                <h3>Ativar conta</h3>
-                <label className="field">
-                  <span>Celular usado no cadastro</span>
-                  <input
-                    value={activateForm.celular}
-                    onChange={(event) => updateActivateField('celular', event.target.value)}
-                    placeholder="+5511999999999"
-                  />
-                </label>
-                <label className="field">
-                  <span>Codigo recebido</span>
-                  <input
-                    value={activateForm.codigo}
-                    onChange={(event) => updateActivateField('codigo', event.target.value)}
-                    placeholder="1234"
-                  />
-                </label>
-                <p className="helper-text">
-                  Depois da ativacao, o front salva o JWT e o token do seller automaticamente.
-                </p>
-
-                <button className="primary-button" disabled={busyAction === 'activate'} type="submit">
-                  {busyAction === 'activate' ? 'Ativando...' : 'Ativar conta'}
-                </button>
-              </form>
-
-              <form className="form-card" onSubmit={handleLoginSubmit}>
-                <h3>Entrar</h3>
-                <label className="field">
-                  <span>E-mail</span>
-                  <input
-                    type="email"
-                    value={loginForm.email}
-                    onChange={(event) => updateLoginField('email', event.target.value)}
-                    placeholder="mercado@email.com"
-                  />
-                </label>
-                <label className="field">
-                  <span>Senha</span>
-                  <input
-                    type="password"
-                    value={loginForm.senha}
-                    onChange={(event) => updateLoginField('senha', event.target.value)}
-                    placeholder="Sua senha"
-                  />
-                </label>
-                <button className="primary-button" disabled={busyAction === 'login'} type="submit">
-                  {busyAction === 'login' ? 'Entrando...' : 'Fazer login'}
-                </button>
-              </form>
-            </div>
-          </article>
-        </section>
-        ) : null}
-        {session.accessToken ? (
-          <>
-            <section className="dashboard">
-              <div className="dashboard-greeting">
-                <div>
-                  <span className="panel-kicker">Visao geral</span>
-                  <h2 className="dashboard-title">
-                    {getGreeting()}, {session.seller?.nome?.split(' ')[0] || 'Seller'}!
-                  </h2>
-                  <p className="dashboard-date">{formatFullDate(new Date())}</p>
-                </div>
-              </div>
-
-              <div className="dashboard-stats">
-                <div className="stat-card stat-green">
-                  <span className="stat-icon">🛒</span>
-                  <div className="stat-body">
-                    <span className="stat-value">{dashTotalSales}</span>
-                    <span className="stat-label">Vendas realizadas</span>
-                  </div>
-                </div>
-                <div className="stat-card stat-orange">
-                  <span className="stat-icon">💰</span>
-                  <div className="stat-body">
-                    <span className="stat-value stat-value-md">{formatCurrency(dashTotalRevenue)}</span>
-                    <span className="stat-label">Faturamento total</span>
-                  </div>
-                </div>
-                <div className="stat-card stat-teal">
-                  <span className="stat-icon">📦</span>
-                  <div className="stat-body">
-                    <span className="stat-value">{dashActiveProducts}</span>
-                    <span className="stat-label">Produtos ativos</span>
-                  </div>
-                </div>
-                <div className={`stat-card ${dashOutOfStock > 0 ? 'stat-danger' : 'stat-teal'}`}>
-                  <span className="stat-icon">{dashOutOfStock > 0 ? '⚠️' : '✅'}</span>
-                  <div className="stat-body">
-                    <span className="stat-value">{dashOutOfStock}</span>
-                    <span className="stat-label">Sem estoque</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="dashboard-grid">
-                <div className="dashboard-card">
-                  <h3 className="dashboard-card-title">Estoque critico</h3>
-                  {dashLowStock.length ? (
-                    <div className="low-stock-list">
-                      {dashLowStock.map((p) => (
-                        <div className="low-stock-item" key={p.id}>
-                          <span className="low-stock-name">{p.nome}</span>
-                          <span className="low-stock-qty">{p.quantidade} un.</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="dashboard-empty">Todos os produtos estao com estoque ok.</p>
-                  )}
-                </div>
-
-                <div className="dashboard-card">
-                  <h3 className="dashboard-card-title">Ultimas vendas</h3>
-                  {dashRecentSales.length ? (
-                    <div className="recent-sales-list">
-                      {dashRecentSales.map((sale) => {
-                        const nome =
-                          sale.produto?.nome ||
-                          sale.produto_nome ||
-                          `Produto #${sale.produto_id || sale.produtoId || ''}`;
-                        const valorTotal = sale.valor_total ?? sale.valorTotal;
-                        const createdAt = sale.created_at || sale.createdAt;
-                        return (
-                          <div className="recent-sale-item" key={sale.id}>
-                            <span className="recent-sale-name">{nome}</span>
-                            <span className="recent-sale-qty">{sale.quantidade} un.</span>
-                            <span className="recent-sale-value">{formatCurrency(valorTotal)}</span>
-                            <span className="recent-sale-time">
-                              {createdAt ? formatDateTime(createdAt) : '—'}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="dashboard-empty">Nenhuma venda registrada ainda.</p>
-                  )}
-                </div>
-              </div>
-
-              {dashTopProducts.length > 0 && (
-                <div className="dashboard-card">
-                  <h3 className="dashboard-card-title">Top produtos por faturamento</h3>
-                  <div className="bar-chart">
-                    {dashTopProducts.map((p, i) => (
-                      <div className="bar-row" key={i}>
-                        <span className="bar-label">{p.nome}</span>
-                        <div className="bar-track">
-                          <div
-                            className="bar-fill"
-                            style={{ width: `${(p.value / dashMaxRevenue) * 100}%` }}
-                          />
-                        </div>
-                        <span className="bar-value">{formatCurrency(p.value)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </section>
-
-            <section className="content-grid">
-              <article className="panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="panel-kicker">Produtos</span>
-                    <h2>{editingProductId ? 'Editar produto' : 'Cadastrar produto'}</h2>
-                  </div>
-                  {editingProductId ? (
-                    <button className="ghost-button" type="button" onClick={resetProductEditor}>
-                      Cancelar edicao
-                    </button>
-                  ) : null}
-                </div>
-
-                <form className="form-grid" onSubmit={handleProductSubmit}>
-                  <label className="field field-span-2">
-                    <span>Nome do produto</span>
-                    <input
-                      value={productForm.nome}
-                      onChange={(event) => updateProductField('nome', event.target.value)}
-                      placeholder="Arroz tipo 1"
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Preco</span>
-                    <input
-                      min="0"
-                      step="0.01"
-                      type="number"
-                      value={productForm.preco}
-                      onChange={(event) => updateProductField('preco', event.target.value)}
-                      placeholder="10.50"
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Quantidade</span>
-                    <input
-                      min="0"
-                      step="1"
-                      type="number"
-                      value={productForm.quantidade}
-                      onChange={(event) => updateProductField('quantidade', event.target.value)}
-                      placeholder="100"
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Status</span>
-                    <select
-                      value={productForm.status}
-                      onChange={(event) => updateProductField('status', event.target.value)}
-                    >
-                      <option value="Ativo">Ativo</option>
-                      <option value="Inativo">Inativo</option>
-                    </select>
-                  </label>
-                  <div className="field field-span-2">
-                    <span>Imagem do produto</span>
-                    {productForm.imagem ? (
-                      <div className="image-picker-preview">
-                        {productForm.imagem.startsWith('data:application/pdf') ? (
-                          <span className="image-preview-pdf">PDF selecionado</span>
-                        ) : (
-                          <img className="image-preview-thumb" src={productForm.imagem} alt="Preview" />
-                        )}
-                        <button
-                          className="ghost-button"
-                          type="button"
-                          onClick={() => {
-                            updateProductField('imagem', '');
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}
-                        >
-                          Remover
-                        </button>
-                      </div>
-                    ) : null}
-                    <label className="image-picker-label">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".png,.jpg,.jpeg,.pdf"
-                        className="image-picker-input"
-                        onChange={handleImageFileChange}
-                      />
-                      Selecionar imagem
-                    </label>
-                    <p className="helper-text">PNG, JPG, JPEG ou PDF — maximo 10 MB.</p>
-                  </div>
-
-                  <button className="primary-button field-span-2" disabled={busyAction === 'product'} type="submit">
-                    {busyAction === 'product'
-                      ? 'Salvando produto...'
-                      : editingProductId
-                        ? 'Atualizar produto'
-                        : 'Cadastrar produto'}
-                  </button>
-                </form>
-              </article>
-
-              <article className="panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="panel-kicker">Vendas</span>
-                    <h2>Registrar venda</h2>
-                  </div>
-                </div>
-
-                <form className="sale-form" onSubmit={handleSaleSubmit}>
-                  <label className="field">
-                    <span>Produto</span>
-                    <select
-                      value={saleForm.produtoId}
-                      onChange={(event) => updateSaleField('produtoId', event.target.value)}
-                    >
-                      <option value="">Selecione um produto</option>
-                      {products
-                        .filter((product) => product.status === 'Ativo' && product.quantidade > 0)
-                        .map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.nome} - {product.quantidade} un.
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-
-                  <label className="field">
-                    <span>Quantidade vendida</span>
-                    <input
-                      min="1"
-                      step="1"
-                      type="number"
-                      value={saleForm.quantidade}
-                      onChange={(event) => updateSaleField('quantidade', event.target.value)}
-                    />
-                  </label>
-
-                  <button className="primary-button" disabled={busyAction === 'sale'} type="submit">
-                    {busyAction === 'sale' ? 'Registrando venda...' : 'Confirmar venda'}
-                  </button>
-                </form>
-
-                <p className="helper-text">
-                  A lista de produtos da venda mostra apenas itens ativos com estoque disponivel.
-                </p>
-              </article>
-            </section>
-
-            <section className="panel">
-              <div className="panel-heading">
-                <div>
-                  <span className="panel-kicker">Catalogo</span>
-                  <h2>Produtos cadastrados</h2>
-                </div>
-                <div className="catalog-actions">
-                  <input
-                    className="search-input"
-                    placeholder="Buscar por nome, status ou ID"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                  />
-                  <button className="ghost-button" type="button" onClick={loadProducts}>
-                    Atualizar lista
-                  </button>
-                </div>
-              </div>
-
-              {productsLoading || isPending ? (
-                <div className="empty-state">Sincronizando produtos com a API...</div>
-              ) : filteredProducts.length ? (
-                <div className="catalog-grid">
-                  {filteredProducts.map((product) => (
-                    <article className="product-card" key={product.id}>
-                      <div className="product-media">
-                        {product.imagem ? (
-                          <img alt={product.nome} src={product.imagem} />
-                        ) : (
-                          <div className="product-placeholder">{product.nome.slice(0, 2).toUpperCase()}</div>
-                        )}
-                      </div>
-
-                      <div className="product-content">
-                        <div className="product-header">
-                          <div>
-                            <span className="product-id">Produto #{product.id}</span>
-                            <h3>{product.nome}</h3>
-                          </div>
-                          <span className={`badge badge-${product.status.toLowerCase()}`}>
-                            {product.status}
-                          </span>
-                        </div>
-
-                        <div className="product-meta">
-                          <span>{formatCurrency(product.preco)}</span>
-                          <span>{product.quantidade} un. em estoque</span>
-                        </div>
-
-                        <div className="product-actions">
-                          <button
-                            className="secondary-button"
-                            type="button"
-                            onClick={() => handleEditProduct(product)}
-                          >
-                            Editar
-                          </button>
-                          {product.status === 'Inativo' ? (
-                            <button
-                              className="reactivate-button"
-                              disabled={busyAction === `activate-product-${product.id}`}
-                              type="button"
-                              onClick={() => handleActivateProduct(product.id)}
-                            >
-                              {busyAction === `activate-product-${product.id}` ? 'Reativando...' : 'Reativar'}
-                            </button>
-                          ) : (
-                            <button
-                              className="danger-button"
-                              disabled={busyAction === `inactivate-${product.id}`}
-                              type="button"
-                              onClick={() => handleInactivateProduct(product.id)}
-                            >
-                              {busyAction === `inactivate-${product.id}` ? 'Inativando...' : 'Inativar'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty-state">Nenhum produto encontrado para o filtro atual.</div>
-              )}
-            </section>
-
-            <section className="panel" style={{ marginTop: '1.25rem' }}>
-              <div className="panel-heading">
-                <div>
-                  <span className="panel-kicker">Historico</span>
-                  <h2>Minhas vendas</h2>
-                </div>
-                <button className="ghost-button" type="button" onClick={loadSales}>
-                  Atualizar lista
-                </button>
-              </div>
-
-              {salesLoading ? (
-                <div className="empty-state">Carregando vendas...</div>
-              ) : sales.length ? (
-                <div className="sales-list">
-                  {sales.map((sale) => {
-                    const product = sale.produto || {};
-                    const imagem = product.imagem || sale.produto_imagem || '';
-                    const nome = product.nome || sale.produto_nome || `Produto #${sale.produto_id || sale.produtoId || ''}`;
-                    const quantidade = sale.quantidade;
-                    const valorTotal = sale.valor_total ?? sale.valorTotal;
-                    const createdAt = sale.created_at || sale.createdAt;
-                    const isEditing = editingSaleId === sale.id;
-
-                    if (isEditing) {
-                      return (
-                        <div className="sale-row sale-edit-row" key={sale.id}>
-                          <div className="sale-media">
-                            {imagem ? (
-                              <img alt={nome} src={imagem} />
-                            ) : (
-                              <div className="sale-placeholder">{nome.slice(0, 2).toUpperCase()}</div>
-                            )}
-                          </div>
-                          <form className="sale-edit-form" onSubmit={(e) => handleSaleEditSubmit(e, sale.id)}>
-                            <span className="sale-edit-title">Editando venda #{sale.id}</span>
-                            <div className="sale-edit-fields">
-                              <label className="field">
-                                <span>Produto</span>
-                                <select
-                                  value={saleEditForm.produtoId}
-                                  onChange={(e) => updateSaleEditField('produtoId', e.target.value)}
-                                >
-                                  {products.map((p) => (
-                                    <option key={p.id} value={p.id}>{p.nome}</option>
-                                  ))}
-                                </select>
-                              </label>
-                              <label className="field">
-                                <span>Quantidade</span>
-                                <input
-                                  min="1"
-                                  step="1"
-                                  type="number"
-                                  value={saleEditForm.quantidade}
-                                  onChange={(e) => updateSaleEditField('quantidade', e.target.value)}
-                                />
-                              </label>
-                              <label className="field">
-                                <span>Preco unitario</span>
-                                <input
-                                  min="0"
-                                  step="0.01"
-                                  type="number"
-                                  value={saleEditForm.precoUnitario}
-                                  onChange={(e) => updateSaleEditField('precoUnitario', e.target.value)}
-                                  placeholder="Opcional"
-                                />
-                              </label>
-                            </div>
-                            <div className="sale-edit-actions">
-                              <button
-                                className="primary-button"
-                                disabled={busyAction === `sale-edit-${sale.id}`}
-                                type="submit"
-                              >
-                                {busyAction === `sale-edit-${sale.id}` ? 'Salvando...' : 'Salvar'}
-                              </button>
-                              <button className="ghost-button" type="button" onClick={resetSaleEditor}>
-                                Cancelar
-                              </button>
-                            </div>
-                          </form>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="sale-row" key={sale.id}>
-                        <div className="sale-media">
-                          {imagem ? (
-                            <img alt={nome} src={imagem} />
-                          ) : (
-                            <div className="sale-placeholder">{nome.slice(0, 2).toUpperCase()}</div>
-                          )}
-                        </div>
-                        <div className="sale-info">
-                          <span className="sale-product-name">{nome}</span>
-                        </div>
-                        <div className="sale-stats">
-                          <span className="sale-qty">{quantidade} un.</span>
-                          <span className="sale-value">{formatCurrency(valorTotal)}</span>
-                        </div>
-                        <div className="sale-time">
-                          {createdAt ? formatDateTime(createdAt) : '—'}
-                        </div>
-                        <div className="sale-actions">
-                          <button
-                            className="secondary-button"
-                            type="button"
-                            onClick={() => handleEditSale(sale)}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            className="danger-button"
-                            disabled={busyAction === `cancel-sale-${sale.id}`}
-                            type="button"
-                            onClick={() => handleCancelSale(sale.id)}
-                          >
-                            {busyAction === `cancel-sale-${sale.id}` ? 'Cancelando...' : 'Cancelar'}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="empty-state">Nenhuma venda registrada ainda.</div>
-              )}
-            </section>
-            <section className="panel profile-panel" style={{ marginTop: '1.25rem' }}>
-              <div className="panel-heading">
-                <div>
-                  <span className="panel-kicker">Minha Conta</span>
-                  <h2>Perfil do Seller</h2>
-                </div>
+            <nav className="sidebar-nav">
+              {[
+                { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
+                { id: 'products',  icon: '📦', label: 'Produtos' },
+                { id: 'sales',     icon: '🛒', label: 'Vendas' },
+                { id: 'profile',   icon: '👤', label: 'Meu Perfil' },
+              ].map((item) => (
                 <button
-                  className="ghost-button"
+                  key={item.id}
+                  className={`sidebar-item${activeSection === item.id ? ' sidebar-item-active' : ''}`}
                   type="button"
-                  onClick={showProfileEditor ? () => setShowProfileEditor(false) : handleOpenProfileEditor}
+                  onClick={() => setActiveSection(item.id)}
                 >
-                  {showProfileEditor ? 'Fechar' : 'Editar perfil'}
+                  <span className="sidebar-item-icon">{item.icon}</span>
+                  <span className="sidebar-item-label">{item.label}</span>
                 </button>
-              </div>
+              ))}
+            </nav>
 
-              <div className="profile-info-grid">
-                <div className="profile-info-item">
-                  <span className="profile-info-label">Nome</span>
-                  <strong>{session.seller?.nome || '—'}</strong>
-                </div>
-                <div className="profile-info-item">
-                  <span className="profile-info-label">E-mail</span>
-                  <strong>{session.seller?.email || '—'}</strong>
-                </div>
-                <div className="profile-info-item">
-                  <span className="profile-info-label">Celular</span>
-                  <strong>{session.seller?.celular || '—'}</strong>
-                </div>
-                <div className="profile-info-item">
-                  <span className="profile-info-label">CNPJ</span>
-                  <strong>{session.seller?.cnpj || '—'}</strong>
-                </div>
-                <div className="profile-info-item">
-                  <span className="profile-info-label">Status</span>
-                  <span className={`badge badge-${(session.seller?.status || '').toLowerCase()}`}>
-                    {session.seller?.status || '—'}
-                  </span>
+            <div className="sidebar-footer">
+              <button className="sidebar-logout" type="button" onClick={handleLogout}>
+                <span className="sidebar-item-icon">🚪</span>
+                <span className="sidebar-item-label">Sair</span>
+              </button>
+            </div>
+          </aside>
+
+          {/* ── MAIN AREA ── */}
+          <div className="app-main">
+            <header className="app-topbar">
+              <h1 className="topbar-section-title">{sectionTitles[activeSection]}</h1>
+              <div className="topbar-seller">
+                <div className="seller-avatar">{sellerInitials}</div>
+                <div className="seller-info">
+                  <span className="seller-name">{session.seller?.nome}</span>
+                  <span className="seller-email">{session.seller?.email}</span>
                 </div>
               </div>
+            </header>
 
-              {showProfileEditor ? (
-                <form className="form-grid profile-form" onSubmit={handleProfileSubmit}>
+            {feedback.text ? (
+              <div className={`feedback-banner feedback-${feedback.tone} topbar-feedback`}>{feedback.text}</div>
+            ) : null}
+
+            <main className="app-content">
+
+              {/* ── DASHBOARD ── */}
+              {activeSection === 'dashboard' && (
+                <div className="dashboard">
+                  <div className="dashboard-greeting">
+                    <div>
+                      <span className="panel-kicker">Visao geral</span>
+                      <h2 className="dashboard-title">
+                        {getGreeting()}, {session.seller?.nome?.split(' ')[0] || 'Seller'}!
+                      </h2>
+                      <p className="dashboard-date">{formatFullDate(new Date())}</p>
+                    </div>
+                  </div>
+
+                  <div className="dashboard-stats">
+                    <div className="stat-card stat-green">
+                      <span className="stat-icon">🛒</span>
+                      <div className="stat-body">
+                        <span className="stat-value">{dashTotalSales}</span>
+                        <span className="stat-label">Vendas realizadas</span>
+                      </div>
+                    </div>
+                    <div className="stat-card stat-orange">
+                      <span className="stat-icon">💰</span>
+                      <div className="stat-body">
+                        <span className="stat-value stat-value-md">{formatCurrency(dashTotalRevenue)}</span>
+                        <span className="stat-label">Faturamento total</span>
+                      </div>
+                    </div>
+                    <div className="stat-card stat-teal">
+                      <span className="stat-icon">📦</span>
+                      <div className="stat-body">
+                        <span className="stat-value">{dashActiveProducts}</span>
+                        <span className="stat-label">Produtos ativos</span>
+                      </div>
+                    </div>
+                    <div className={`stat-card ${dashOutOfStock > 0 ? 'stat-danger' : 'stat-teal'}`}>
+                      <span className="stat-icon">{dashOutOfStock > 0 ? '⚠️' : '✅'}</span>
+                      <div className="stat-body">
+                        <span className="stat-value">{dashOutOfStock}</span>
+                        <span className="stat-label">Sem estoque</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="dashboard-grid">
+                    <div className="dashboard-card">
+                      <h3 className="dashboard-card-title">Estoque critico</h3>
+                      {dashLowStock.length ? (
+                        <div className="low-stock-list">
+                          {dashLowStock.map((p) => (
+                            <div className="low-stock-item" key={p.id}>
+                              <span className="low-stock-name">{p.nome}</span>
+                              <span className="low-stock-qty">{p.quantidade} un.</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="dashboard-empty">Todos os produtos estao com estoque ok.</p>
+                      )}
+                    </div>
+
+                    <div className="dashboard-card">
+                      <h3 className="dashboard-card-title">Ultimas vendas</h3>
+                      {dashRecentSales.length ? (
+                        <div className="recent-sales-list">
+                          {dashRecentSales.map((sale) => {
+                            const nome = sale.produto?.nome || sale.produto_nome || `Produto #${sale.produto_id || sale.produtoId || ''}`;
+                            const valorTotal = sale.valor_total ?? sale.valorTotal;
+                            const createdAt = sale.created_at || sale.createdAt;
+                            return (
+                              <div className="recent-sale-item" key={sale.id}>
+                                <span className="recent-sale-name">{nome}</span>
+                                <span className="recent-sale-qty">{sale.quantidade} un.</span>
+                                <span className="recent-sale-value">{formatCurrency(valorTotal)}</span>
+                                <span className="recent-sale-time">{createdAt ? formatDateTime(createdAt) : '—'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="dashboard-empty">Nenhuma venda registrada ainda.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {dashTopProducts.length > 0 && (
+                    <div className="dashboard-card">
+                      <h3 className="dashboard-card-title">Top produtos por faturamento</h3>
+                      <div className="bar-chart">
+                        {dashTopProducts.map((p, i) => (
+                          <div className="bar-row" key={i}>
+                            <span className="bar-label">{p.nome}</span>
+                            <div className="bar-track">
+                              <div className="bar-fill" style={{ width: `${(p.value / dashMaxRevenue) * 100}%` }} />
+                            </div>
+                            <span className="bar-value">{formatCurrency(p.value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── PRODUTOS ── */}
+              {activeSection === 'products' && (
+                <>
+                  <article className="panel">
+                    <div className="panel-heading">
+                      <div>
+                        <span className="panel-kicker">Produtos</span>
+                        <h2>{editingProductId ? 'Editar produto' : 'Cadastrar produto'}</h2>
+                      </div>
+                      {editingProductId ? (
+                        <button className="ghost-button" type="button" onClick={resetProductEditor}>
+                          Cancelar edicao
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <form className="form-grid" onSubmit={handleProductSubmit}>
+                      <label className="field field-span-2">
+                        <span>Nome do produto</span>
+                        <input value={productForm.nome} onChange={(e) => updateProductField('nome', e.target.value)} placeholder="Arroz tipo 1" />
+                      </label>
+                      <label className="field">
+                        <span>Preco</span>
+                        <input min="0" step="0.01" type="number" value={productForm.preco} onChange={(e) => updateProductField('preco', e.target.value)} placeholder="10.50" />
+                      </label>
+                      <label className="field">
+                        <span>Quantidade</span>
+                        <input min="0" step="1" type="number" value={productForm.quantidade} onChange={(e) => updateProductField('quantidade', e.target.value)} placeholder="100" />
+                      </label>
+                      <label className="field">
+                        <span>Status</span>
+                        <select value={productForm.status} onChange={(e) => updateProductField('status', e.target.value)}>
+                          <option value="Ativo">Ativo</option>
+                          <option value="Inativo">Inativo</option>
+                        </select>
+                      </label>
+                      <div className="field field-span-2">
+                        <span>Imagem do produto</span>
+                        {productForm.imagem ? (
+                          <div className="image-picker-preview">
+                            {productForm.imagem.startsWith('data:application/pdf') ? (
+                              <span className="image-preview-pdf">PDF selecionado</span>
+                            ) : (
+                              <img className="image-preview-thumb" src={productForm.imagem} alt="Preview" />
+                            )}
+                            <button className="ghost-button" type="button" onClick={() => { updateProductField('imagem', ''); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
+                              Remover
+                            </button>
+                          </div>
+                        ) : null}
+                        <label className="image-picker-label">
+                          <input ref={fileInputRef} type="file" accept=".png,.jpg,.jpeg,.pdf" className="image-picker-input" onChange={handleImageFileChange} />
+                          Selecionar imagem
+                        </label>
+                        <p className="helper-text">PNG, JPG, JPEG ou PDF — maximo 10 MB.</p>
+                      </div>
+                      <button className="primary-button field-span-2" disabled={busyAction === 'product'} type="submit">
+                        {busyAction === 'product' ? 'Salvando produto...' : editingProductId ? 'Atualizar produto' : 'Cadastrar produto'}
+                      </button>
+                    </form>
+                  </article>
+
+                  <section className="panel section-below">
+                    <div className="panel-heading">
+                      <div>
+                        <span className="panel-kicker">Catalogo</span>
+                        <h2>Produtos cadastrados</h2>
+                      </div>
+                      <div className="catalog-actions">
+                        <input className="search-input" placeholder="Buscar por nome, status ou ID" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                        <button className="ghost-button" type="button" onClick={loadProducts}>Atualizar lista</button>
+                      </div>
+                    </div>
+
+                    {productsLoading || isPending ? (
+                      <div className="empty-state">Sincronizando produtos com a API...</div>
+                    ) : filteredProducts.length ? (
+                      <div className="catalog-grid">
+                        {filteredProducts.map((product) => (
+                          <article className="product-card" key={product.id}>
+                            <div className="product-media">
+                              {product.imagem ? (
+                                <img alt={product.nome} src={product.imagem} />
+                              ) : (
+                                <div className="product-placeholder">{product.nome.slice(0, 2).toUpperCase()}</div>
+                              )}
+                            </div>
+                            <div className="product-content">
+                              <div className="product-header">
+                                <div>
+                                  <span className="product-id">Produto #{product.id}</span>
+                                  <h3>{product.nome}</h3>
+                                </div>
+                                <span className={`badge badge-${product.status.toLowerCase()}`}>{product.status}</span>
+                              </div>
+                              <div className="product-meta">
+                                <span>{formatCurrency(product.preco)}</span>
+                                <span>{product.quantidade} un. em estoque</span>
+                              </div>
+                              <div className="product-actions">
+                                <button className="secondary-button" type="button" onClick={() => handleEditProduct(product)}>Editar</button>
+                                {product.status === 'Inativo' ? (
+                                  <button className="reactivate-button" disabled={busyAction === `activate-product-${product.id}`} type="button" onClick={() => handleActivateProduct(product.id)}>
+                                    {busyAction === `activate-product-${product.id}` ? 'Reativando...' : 'Reativar'}
+                                  </button>
+                                ) : (
+                                  <button className="danger-button" disabled={busyAction === `inactivate-${product.id}`} type="button" onClick={() => handleInactivateProduct(product.id)}>
+                                    {busyAction === `inactivate-${product.id}` ? 'Inativando...' : 'Inativar'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="empty-state">Nenhum produto encontrado para o filtro atual.</div>
+                    )}
+                  </section>
+                </>
+              )}
+
+              {/* ── VENDAS ── */}
+              {activeSection === 'sales' && (
+                <>
+                  <article className="panel">
+                    <div className="panel-heading">
+                      <div>
+                        <span className="panel-kicker">Vendas</span>
+                        <h2>Registrar venda</h2>
+                      </div>
+                    </div>
+                    <form className="sale-form" onSubmit={handleSaleSubmit}>
+                      <label className="field">
+                        <span>Produto</span>
+                        <select value={saleForm.produtoId} onChange={(e) => updateSaleField('produtoId', e.target.value)}>
+                          <option value="">Selecione um produto</option>
+                          {products.filter((p) => p.status === 'Ativo' && p.quantidade > 0).map((p) => (
+                            <option key={p.id} value={p.id}>{p.nome} - {p.quantidade} un.</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Quantidade vendida</span>
+                        <input min="1" step="1" type="number" value={saleForm.quantidade} onChange={(e) => updateSaleField('quantidade', e.target.value)} />
+                      </label>
+                      <button className="primary-button" disabled={busyAction === 'sale'} type="submit">
+                        {busyAction === 'sale' ? 'Registrando venda...' : 'Confirmar venda'}
+                      </button>
+                    </form>
+                    <p className="helper-text">A lista mostra apenas itens ativos com estoque disponivel.</p>
+                  </article>
+
+                  <section className="panel section-below">
+                    <div className="panel-heading">
+                      <div>
+                        <span className="panel-kicker">Historico</span>
+                        <h2>Minhas vendas</h2>
+                      </div>
+                      <button className="ghost-button" type="button" onClick={loadSales}>Atualizar lista</button>
+                    </div>
+
+                    {salesLoading ? (
+                      <div className="empty-state">Carregando vendas...</div>
+                    ) : sales.length ? (
+                      <div className="sales-list">
+                        {sales.map((sale) => {
+                          const product = sale.produto || {};
+                          const imagem = product.imagem || sale.produto_imagem || '';
+                          const nome = product.nome || sale.produto_nome || `Produto #${sale.produto_id || sale.produtoId || ''}`;
+                          const quantidade = sale.quantidade;
+                          const valorTotal = sale.valor_total ?? sale.valorTotal;
+                          const createdAt = sale.created_at || sale.createdAt;
+                          const isEditing = editingSaleId === sale.id;
+
+                          if (isEditing) {
+                            return (
+                              <div className="sale-row sale-edit-row" key={sale.id}>
+                                <div className="sale-media">
+                                  {imagem ? <img alt={nome} src={imagem} /> : <div className="sale-placeholder">{nome.slice(0, 2).toUpperCase()}</div>}
+                                </div>
+                                <form className="sale-edit-form" onSubmit={(e) => handleSaleEditSubmit(e, sale.id)}>
+                                  <span className="sale-edit-title">Editando venda #{sale.id}</span>
+                                  <div className="sale-edit-fields">
+                                    <label className="field">
+                                      <span>Produto</span>
+                                      <select value={saleEditForm.produtoId} onChange={(e) => updateSaleEditField('produtoId', e.target.value)}>
+                                        {products.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                                      </select>
+                                    </label>
+                                    <label className="field">
+                                      <span>Quantidade</span>
+                                      <input min="1" step="1" type="number" value={saleEditForm.quantidade} onChange={(e) => updateSaleEditField('quantidade', e.target.value)} />
+                                    </label>
+                                    <label className="field">
+                                      <span>Preco unitario</span>
+                                      <input min="0" step="0.01" type="number" value={saleEditForm.precoUnitario} onChange={(e) => updateSaleEditField('precoUnitario', e.target.value)} placeholder="Opcional" />
+                                    </label>
+                                  </div>
+                                  <div className="sale-edit-actions">
+                                    <button className="primary-button" disabled={busyAction === `sale-edit-${sale.id}`} type="submit">
+                                      {busyAction === `sale-edit-${sale.id}` ? 'Salvando...' : 'Salvar'}
+                                    </button>
+                                    <button className="ghost-button" type="button" onClick={resetSaleEditor}>Cancelar</button>
+                                  </div>
+                                </form>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="sale-row" key={sale.id}>
+                              <div className="sale-media">
+                                {imagem ? <img alt={nome} src={imagem} /> : <div className="sale-placeholder">{nome.slice(0, 2).toUpperCase()}</div>}
+                              </div>
+                              <div className="sale-info"><span className="sale-product-name">{nome}</span></div>
+                              <div className="sale-stats">
+                                <span className="sale-qty">{quantidade} un.</span>
+                                <span className="sale-value">{formatCurrency(valorTotal)}</span>
+                              </div>
+                              <div className="sale-time">{createdAt ? formatDateTime(createdAt) : '—'}</div>
+                              <div className="sale-actions">
+                                <button className="secondary-button" type="button" onClick={() => handleEditSale(sale)}>Editar</button>
+                                <button className="danger-button" disabled={busyAction === `cancel-sale-${sale.id}`} type="button" onClick={() => handleCancelSale(sale.id)}>
+                                  {busyAction === `cancel-sale-${sale.id}` ? 'Cancelando...' : 'Cancelar'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="empty-state">Nenhuma venda registrada ainda.</div>
+                    )}
+                  </section>
+                </>
+              )}
+
+              {/* ── PERFIL ── */}
+              {activeSection === 'profile' && (
+                <section className="panel profile-panel">
+                  <div className="panel-heading">
+                    <div>
+                      <span className="panel-kicker">Minha Conta</span>
+                      <h2>Perfil do Seller</h2>
+                    </div>
+                    <button className="ghost-button" type="button" onClick={showProfileEditor ? () => setShowProfileEditor(false) : handleOpenProfileEditor}>
+                      {showProfileEditor ? 'Fechar' : 'Editar perfil'}
+                    </button>
+                  </div>
+
+                  <div className="profile-info-grid">
+                    <div className="profile-info-item">
+                      <span className="profile-info-label">Nome</span>
+                      <strong>{session.seller?.nome || '—'}</strong>
+                    </div>
+                    <div className="profile-info-item">
+                      <span className="profile-info-label">E-mail</span>
+                      <strong>{session.seller?.email || '—'}</strong>
+                    </div>
+                    <div className="profile-info-item">
+                      <span className="profile-info-label">Celular</span>
+                      <strong>{session.seller?.celular || '—'}</strong>
+                    </div>
+                    <div className="profile-info-item">
+                      <span className="profile-info-label">CNPJ</span>
+                      <strong>{session.seller?.cnpj || '—'}</strong>
+                    </div>
+                    <div className="profile-info-item">
+                      <span className="profile-info-label">Status</span>
+                      <span className={`badge badge-${(session.seller?.status || '').toLowerCase()}`}>{session.seller?.status || '—'}</span>
+                    </div>
+                  </div>
+
+                  {showProfileEditor ? (
+                    <form className="form-grid profile-form" onSubmit={handleProfileSubmit}>
+                      <label className="field">
+                        <span>Nome do mercado</span>
+                        <input value={profileForm.nome} onChange={(e) => updateProfileField('nome', e.target.value)} placeholder="Mercadinho Central" />
+                      </label>
+                      <label className="field">
+                        <span>E-mail</span>
+                        <input type="email" value={profileForm.email} onChange={(e) => updateProfileField('email', e.target.value)} placeholder="mercado@email.com" />
+                      </label>
+                      <label className="field">
+                        <span>Celular</span>
+                        <input value={profileForm.celular} onChange={(e) => updateProfileField('celular', e.target.value)} placeholder="+5511999999999" />
+                      </label>
+                      <label className="field">
+                        <span>Nova senha</span>
+                        <input type="password" value={profileForm.senha} onChange={(e) => updateProfileField('senha', e.target.value)} placeholder="Deixe em branco para manter" />
+                      </label>
+                      <button className="primary-button field-span-2" disabled={busyAction === 'profile'} type="submit">
+                        {busyAction === 'profile' ? 'Salvando perfil...' : 'Salvar alteracoes'}
+                      </button>
+                    </form>
+                  ) : null}
+                </section>
+              )}
+
+            </main>
+          </div>
+        </div>
+      ) : (
+        <main className="auth-page">
+          <div className="auth-container">
+            <div className="auth-logo">
+              <span className="auth-logo-icon">🛒</span>
+              <h1>Mercadinho</h1>
+              <p>Gestao de vendas</p>
+            </div>
+
+            {feedback.text ? (
+              <div className={`feedback-banner feedback-${feedback.tone}`}>{feedback.text}</div>
+            ) : null}
+
+            {authStep === 'login' && (
+              <div className="auth-card">
+                <h2>Entrar na sua conta</h2>
+                <form onSubmit={handleLoginSubmit}>
+                  <label className="field">
+                    <span>E-mail</span>
+                    <input
+                      type="email"
+                      value={loginForm.email}
+                      onChange={(e) => updateLoginField('email', e.target.value)}
+                      placeholder="mercado@email.com"
+                      autoComplete="email"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Senha</span>
+                    <input
+                      type="password"
+                      value={loginForm.senha}
+                      onChange={(e) => updateLoginField('senha', e.target.value)}
+                      placeholder="Sua senha"
+                      autoComplete="current-password"
+                    />
+                  </label>
+                  <button className="primary-button" disabled={busyAction === 'login'} type="submit">
+                    {busyAction === 'login' ? 'Entrando...' : 'Entrar'}
+                  </button>
+                </form>
+                <p className="auth-footer">
+                  Nao tem conta?{' '}
+                  <button className="auth-link" type="button" onClick={() => setAuthStep('register')}>
+                    Criar conta
+                  </button>
+                </p>
+                <p className="auth-footer auth-footer-sm">
+                  Tem um codigo de ativacao?{' '}
+                  <button className="auth-link" type="button" onClick={() => setAuthStep('activate')}>
+                    Ativar conta
+                  </button>
+                </p>
+              </div>
+            )}
+
+            {authStep === 'register' && (
+              <div className="auth-card">
+                <h2>Criar conta</h2>
+                <form onSubmit={handleRegisterSubmit}>
                   <label className="field">
                     <span>Nome do mercado</span>
                     <input
-                      value={profileForm.nome}
-                      onChange={(e) => updateProfileField('nome', e.target.value)}
+                      value={registerForm.nome}
+                      onChange={(e) => updateRegisterField('nome', e.target.value)}
                       placeholder="Mercadinho Central"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>CNPJ</span>
+                    <input
+                      value={registerForm.cnpj}
+                      onChange={(e) => updateRegisterField('cnpj', e.target.value)}
+                      placeholder="12345678000199"
                     />
                   </label>
                   <label className="field">
                     <span>E-mail</span>
                     <input
                       type="email"
-                      value={profileForm.email}
-                      onChange={(e) => updateProfileField('email', e.target.value)}
+                      value={registerForm.email}
+                      onChange={(e) => updateRegisterField('email', e.target.value)}
                       placeholder="mercado@email.com"
                     />
                   </label>
                   <label className="field">
-                    <span>Celular</span>
+                    <span>Celular (com DDD)</span>
                     <input
-                      value={profileForm.celular}
-                      onChange={(e) => updateProfileField('celular', e.target.value)}
+                      value={registerForm.celular}
+                      onChange={(e) => updateRegisterField('celular', e.target.value)}
+                      placeholder="11999999999"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Senha</span>
+                    <input
+                      type="password"
+                      value={registerForm.senha}
+                      onChange={(e) => updateRegisterField('senha', e.target.value)}
+                      placeholder="Crie uma senha"
+                      autoComplete="new-password"
+                    />
+                  </label>
+                  <button className="primary-button" disabled={busyAction === 'register'} type="submit">
+                    {busyAction === 'register' ? 'Cadastrando...' : 'Criar conta'}
+                  </button>
+                </form>
+                <p className="auth-footer">
+                  Ja tem conta?{' '}
+                  <button className="auth-link" type="button" onClick={() => setAuthStep('login')}>
+                    Entrar
+                  </button>
+                </p>
+              </div>
+            )}
+
+            {authStep === 'activate' && (
+              <div className="auth-card">
+                <div className="auth-step-info">
+                  <span>💬</span>
+                  <span>Um codigo de ativacao foi enviado para o seu celular via WhatsApp. Insira abaixo para ativar sua conta.</span>
+                </div>
+                <h2>Ativar conta</h2>
+                <form onSubmit={handleActivateSubmit}>
+                  <label className="field">
+                    <span>Celular usado no cadastro</span>
+                    <input
+                      value={activateForm.celular}
+                      onChange={(e) => updateActivateField('celular', e.target.value)}
                       placeholder="+5511999999999"
                     />
                   </label>
                   <label className="field">
-                    <span>Nova senha</span>
+                    <span>Codigo recebido</span>
                     <input
-                      type="password"
-                      value={profileForm.senha}
-                      onChange={(e) => updateProfileField('senha', e.target.value)}
-                      placeholder="Deixe em branco para manter"
+                      value={activateForm.codigo}
+                      onChange={(e) => updateActivateField('codigo', e.target.value)}
+                      placeholder="1234"
+                      autoComplete="one-time-code"
                     />
                   </label>
-                  <button
-                    className="primary-button field-span-2"
-                    disabled={busyAction === 'profile'}
-                    type="submit"
-                  >
-                    {busyAction === 'profile' ? 'Salvando perfil...' : 'Salvar alteracoes'}
+                  <button className="primary-button" disabled={busyAction === 'activate'} type="submit">
+                    {busyAction === 'activate' ? 'Ativando...' : 'Ativar e entrar'}
                   </button>
                 </form>
-              ) : null}
-            </section>
-          </>
-        ) : (
-          <section className="panel empty-session">
-            <span className="panel-kicker">Pronto para conectar</span>
-            <h2>Ative ou faca login em um seller para gerenciar os produtos.</h2>
-          </section>
-        )}
-      </main>
+                <p className="auth-footer">
+                  <button className="auth-link" type="button" onClick={() => setAuthStep('login')}>
+                    ← Voltar para o login
+                  </button>
+                </p>
+              </div>
+            )}
+          </div>
+        </main>
+      )}
     </div>
   );
 }
