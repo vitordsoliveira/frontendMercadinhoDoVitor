@@ -717,10 +717,10 @@ function App() {
 
             <nav className="sidebar-nav">
               {[
-                { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
-                { id: 'products',  icon: '📦', label: 'Produtos' },
-                { id: 'sales',     icon: '🛒', label: 'Vendas' },
-                { id: 'profile',   icon: '👤', label: 'Meu Perfil' },
+                { id: 'dashboard', icon: 'bi-speedometer2', label: 'Dashboard' },
+                { id: 'products',  icon: 'bi-box-seam',     label: 'Produtos' },
+                { id: 'sales',     icon: 'bi-cart3',        label: 'Vendas' },
+                { id: 'profile',   icon: 'bi-person-circle', label: 'Meu Perfil' },
               ].map((item) => (
                 <button
                   key={item.id}
@@ -728,7 +728,7 @@ function App() {
                   type="button"
                   onClick={() => setActiveSection(item.id)}
                 >
-                  <span className="sidebar-item-icon">{item.icon}</span>
+                  <i className={`bi ${item.icon} sidebar-item-icon`} />
                   <span className="sidebar-item-label">{item.label}</span>
                 </button>
               ))}
@@ -736,7 +736,7 @@ function App() {
 
             <div className="sidebar-footer">
               <button className="sidebar-logout" type="button" onClick={handleLogout}>
-                <span className="sidebar-item-icon">🚪</span>
+                <i className="bi bi-box-arrow-left sidebar-item-icon" />
                 <span className="sidebar-item-label">Sair</span>
               </button>
             </div>
@@ -1168,7 +1168,7 @@ function App() {
         <main className="auth-page">
           <div className="auth-container">
             <div className="auth-logo">
-              <span className="auth-logo-icon">🛒</span>
+              <i className="bi bi-cart3 auth-logo-icon" />
               <h1>Mercadinho</h1>
               <p>Gestao de vendas</p>
             </div>
@@ -1283,7 +1283,7 @@ function App() {
             {authStep === 'activate' && (
               <div className="auth-card">
                 <div className="auth-step-info">
-                  <span>💬</span>
+                  <i className="bi bi-whatsapp" />
                   <span>Um codigo de ativacao foi enviado para o seu celular via WhatsApp. Insira abaixo para ativar sua conta.</span>
                 </div>
                 <h2>Ativar conta</h2>
@@ -1311,7 +1311,7 @@ function App() {
                 </form>
                 <p className="auth-footer">
                   <button className="auth-link" type="button" onClick={() => setAuthStep('login')}>
-                    ← Voltar para o login
+                    <i className="bi bi-arrow-left" /> Voltar para o login
                   </button>
                 </p>
               </div>
