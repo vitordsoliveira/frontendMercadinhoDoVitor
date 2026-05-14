@@ -48,6 +48,19 @@ const EMPTY_SALE_FORM = {
   quantidade: '1',
 };
 
+const EMPTY_SALE_EDIT_FORM = {
+  produtoId: '',
+  quantidade: '1',
+  precoUnitario: '',
+};
+
+const EMPTY_PROFILE_FORM = {
+  nome: '',
+  email: '',
+  celular: '',
+  senha: '',
+};
+
 function readStorage(key, fallbackValue) {
   try {
     const rawValue = window.localStorage.getItem(key);
@@ -72,6 +85,22 @@ function formatCurrency(value) {
     style: 'currency',
     currency: 'BRL',
   }).format(Number(value || 0));
+}
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function formatFullDate(date) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
 }
 
 function formatDateTime(value) {
@@ -114,6 +143,10 @@ function App() {
   const [isPending, startTransition] = useTransition();
   const [sales, setSales] = useState([]);
   const [salesLoading, setSalesLoading] = useState(false);
+  const [editingSaleId, setEditingSaleId] = useState(null);
+  const [saleEditForm, setSaleEditForm] = useState(EMPTY_SALE_EDIT_FORM);
+  const [profileForm, setProfileForm] = useState(EMPTY_PROFILE_FORM);
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
 
   useEffect(() => {
     saveStorage(SESSION_STORAGE_KEY, session);
@@ -504,14 +537,160 @@ function App() {
     });
   }
 
+  function updateSaleEditField(fieldName, value) {
+    setSaleEditForm((currentValue) => ({ ...currentValue, [fieldName]: value }));
+  }
+
+  function updateProfileField(fieldName, value) {
+    setProfileForm((currentValue) => ({ ...currentValue, [fieldName]: value }));
+  }
+
+  function resetSaleEditor() {
+    setEditingSaleId(null);
+    setSaleEditForm(EMPTY_SALE_EDIT_FORM);
+  }
+
+  async function handleActivateProduct(productId) {
+    await runAction(`activate-product-${productId}`, async () => {
+      const data = await mercadinhoApi.activateProduct(apiUrl, session.accessToken, productId);
+      showFeedback('success', data.message || 'Produto reativado.');
+      await loadProducts();
+    });
+  }
+
+  function handleEditSale(sale) {
+    setEditingSaleId(sale.id);
+    setSaleEditForm({
+      produtoId: String(sale.produto_id || sale.produtoId || sale.produto?.id || ''),
+      quantidade: String(sale.quantidade),
+      precoUnitario: String(sale.preco_unitario || sale.precoUnitario || ''),
+    });
+  }
+
+  async function handleSaleEditSubmit(event, saleId) {
+    event.preventDefault();
+
+    await runAction(`sale-edit-${saleId}`, async () => {
+      if (!saleEditForm.produtoId || saleEditForm.quantidade === '') {
+        throw new Error('Informe o produto e a quantidade.');
+      }
+
+      const payload = {
+        produtoId: Number(saleEditForm.produtoId),
+        quantidade: Number(saleEditForm.quantidade),
+      };
+
+      if (saleEditForm.precoUnitario !== '') {
+        payload.precoUnitario = Number(saleEditForm.precoUnitario);
+      }
+
+      const data = await mercadinhoApi.updateSale(apiUrl, session.accessToken, saleId, payload);
+      showFeedback('success', data.message || 'Venda atualizada.');
+      resetSaleEditor();
+      await loadSales();
+      await loadProducts();
+    });
+  }
+
+  async function handleCancelSale(saleId) {
+    await runAction(`cancel-sale-${saleId}`, async () => {
+      const data = await mercadinhoApi.deleteSale(apiUrl, session.accessToken, saleId);
+      showFeedback('success', data.message || 'Venda cancelada. Estoque restaurado.');
+      await loadSales();
+      await loadProducts();
+    });
+  }
+
+  async function handleOpenProfileEditor() {
+    setProfileForm({
+      nome: session.seller?.nome || '',
+      email: session.seller?.email || '',
+      celular: session.seller?.celular || '',
+      senha: '',
+    });
+    setShowProfileEditor(true);
+
+    try {
+      const data = await mercadinhoApi.getSellerProfile(apiUrl, session.accessToken);
+      const seller = data.seller || data;
+      setProfileForm({
+        nome: seller.nome || session.seller?.nome || '',
+        email: seller.email || session.seller?.email || '',
+        celular: seller.celular || session.seller?.celular || '',
+        senha: '',
+      });
+    } catch {
+      // usa dados da sessao local
+    }
+  }
+
+  async function handleProfileSubmit(event) {
+    event.preventDefault();
+
+    await runAction('profile', async () => {
+      if (!profileForm.nome.trim() || !profileForm.email.trim() || !profileForm.celular.trim()) {
+        throw new Error('Preencha nome, e-mail e celular.');
+      }
+
+      const payload = {
+        nome: profileForm.nome.trim(),
+        email: profileForm.email.trim(),
+        celular: profileForm.celular.trim(),
+      };
+
+      if (profileForm.senha.trim()) {
+        payload.senha = profileForm.senha.trim();
+      }
+
+      const data = await mercadinhoApi.updateSellerProfile(apiUrl, session.accessToken, payload);
+      showFeedback('success', data.message || 'Perfil atualizado com sucesso.');
+
+      if (data.seller) {
+        setSession((currentValue) => ({
+          ...currentValue,
+          seller: { ...currentValue.seller, ...data.seller },
+        }));
+      }
+
+      setProfileForm((currentValue) => ({ ...currentValue, senha: '' }));
+    });
+  }
+
   function handleLogout() {
     setSession(EMPTY_SESSION);
     setProducts([]);
     setSales([]);
     setEditingProductId(null);
     setSaleForm(EMPTY_SALE_FORM);
+    resetSaleEditor();
+    setShowProfileEditor(false);
     showFeedback('neutral', 'Sessao encerrada neste navegador.');
   }
+
+  const dashTotalRevenue = sales.reduce(
+    (sum, s) => sum + Number(s.valor_total ?? s.valorTotal ?? 0),
+    0,
+  );
+  const dashTotalSales = sales.length;
+  const dashActiveProducts = products.filter((p) => p.status === 'Ativo').length;
+  const dashOutOfStock = products.filter((p) => p.quantidade === 0).length;
+  const dashLowStock = products.filter((p) => p.quantidade > 0 && p.quantidade <= 10);
+  const dashRecentSales = [...sales].reverse().slice(0, 5);
+  const dashTopProducts = (() => {
+    const map = {};
+    sales.forEach((sale) => {
+      const id = String(sale.produto_id || sale.produtoId || sale.produto?.id || '');
+      const nome =
+        sale.produto?.nome || sale.produto_nome || `Produto #${id}`;
+      if (!map[id]) map[id] = { nome, value: 0, qty: 0 };
+      map[id].value += Number(sale.valor_total ?? sale.valorTotal ?? 0);
+      map[id].qty += Number(sale.quantidade);
+    });
+    return Object.values(map)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  })();
+  const dashMaxRevenue = dashTopProducts[0]?.value || 1;
 
   return (
     <div className="page-shell">
@@ -650,6 +829,115 @@ function App() {
         ) : null}
         {session.accessToken ? (
           <>
+            <section className="dashboard">
+              <div className="dashboard-greeting">
+                <div>
+                  <span className="panel-kicker">Visao geral</span>
+                  <h2 className="dashboard-title">
+                    {getGreeting()}, {session.seller?.nome?.split(' ')[0] || 'Seller'}!
+                  </h2>
+                  <p className="dashboard-date">{formatFullDate(new Date())}</p>
+                </div>
+              </div>
+
+              <div className="dashboard-stats">
+                <div className="stat-card stat-green">
+                  <span className="stat-icon">🛒</span>
+                  <div className="stat-body">
+                    <span className="stat-value">{dashTotalSales}</span>
+                    <span className="stat-label">Vendas realizadas</span>
+                  </div>
+                </div>
+                <div className="stat-card stat-orange">
+                  <span className="stat-icon">💰</span>
+                  <div className="stat-body">
+                    <span className="stat-value stat-value-md">{formatCurrency(dashTotalRevenue)}</span>
+                    <span className="stat-label">Faturamento total</span>
+                  </div>
+                </div>
+                <div className="stat-card stat-teal">
+                  <span className="stat-icon">📦</span>
+                  <div className="stat-body">
+                    <span className="stat-value">{dashActiveProducts}</span>
+                    <span className="stat-label">Produtos ativos</span>
+                  </div>
+                </div>
+                <div className={`stat-card ${dashOutOfStock > 0 ? 'stat-danger' : 'stat-teal'}`}>
+                  <span className="stat-icon">{dashOutOfStock > 0 ? '⚠️' : '✅'}</span>
+                  <div className="stat-body">
+                    <span className="stat-value">{dashOutOfStock}</span>
+                    <span className="stat-label">Sem estoque</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="dashboard-grid">
+                <div className="dashboard-card">
+                  <h3 className="dashboard-card-title">Estoque critico</h3>
+                  {dashLowStock.length ? (
+                    <div className="low-stock-list">
+                      {dashLowStock.map((p) => (
+                        <div className="low-stock-item" key={p.id}>
+                          <span className="low-stock-name">{p.nome}</span>
+                          <span className="low-stock-qty">{p.quantidade} un.</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="dashboard-empty">Todos os produtos estao com estoque ok.</p>
+                  )}
+                </div>
+
+                <div className="dashboard-card">
+                  <h3 className="dashboard-card-title">Ultimas vendas</h3>
+                  {dashRecentSales.length ? (
+                    <div className="recent-sales-list">
+                      {dashRecentSales.map((sale) => {
+                        const nome =
+                          sale.produto?.nome ||
+                          sale.produto_nome ||
+                          `Produto #${sale.produto_id || sale.produtoId || ''}`;
+                        const valorTotal = sale.valor_total ?? sale.valorTotal;
+                        const createdAt = sale.created_at || sale.createdAt;
+                        return (
+                          <div className="recent-sale-item" key={sale.id}>
+                            <span className="recent-sale-name">{nome}</span>
+                            <span className="recent-sale-qty">{sale.quantidade} un.</span>
+                            <span className="recent-sale-value">{formatCurrency(valorTotal)}</span>
+                            <span className="recent-sale-time">
+                              {createdAt ? formatDateTime(createdAt) : '—'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="dashboard-empty">Nenhuma venda registrada ainda.</p>
+                  )}
+                </div>
+              </div>
+
+              {dashTopProducts.length > 0 && (
+                <div className="dashboard-card">
+                  <h3 className="dashboard-card-title">Top produtos por faturamento</h3>
+                  <div className="bar-chart">
+                    {dashTopProducts.map((p, i) => (
+                      <div className="bar-row" key={i}>
+                        <span className="bar-label">{p.nome}</span>
+                        <div className="bar-track">
+                          <div
+                            className="bar-fill"
+                            style={{ width: `${(p.value / dashMaxRevenue) * 100}%` }}
+                          />
+                        </div>
+                        <span className="bar-value">{formatCurrency(p.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+
             <section className="content-grid">
               <article className="panel">
                 <div className="panel-heading">
@@ -854,14 +1142,25 @@ function App() {
                           >
                             Editar
                           </button>
-                          <button
-                            className="danger-button"
-                            disabled={busyAction === `inactivate-${product.id}` || product.status === 'Inativo'}
-                            type="button"
-                            onClick={() => handleInactivateProduct(product.id)}
-                          >
-                            {busyAction === `inactivate-${product.id}` ? 'Inativando...' : 'Inativar'}
-                          </button>
+                          {product.status === 'Inativo' ? (
+                            <button
+                              className="reactivate-button"
+                              disabled={busyAction === `activate-product-${product.id}`}
+                              type="button"
+                              onClick={() => handleActivateProduct(product.id)}
+                            >
+                              {busyAction === `activate-product-${product.id}` ? 'Reativando...' : 'Reativar'}
+                            </button>
+                          ) : (
+                            <button
+                              className="danger-button"
+                              disabled={busyAction === `inactivate-${product.id}`}
+                              type="button"
+                              onClick={() => handleInactivateProduct(product.id)}
+                            >
+                              {busyAction === `inactivate-${product.id}` ? 'Inativando...' : 'Inativar'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </article>
@@ -894,6 +1193,70 @@ function App() {
                     const quantidade = sale.quantidade;
                     const valorTotal = sale.valor_total ?? sale.valorTotal;
                     const createdAt = sale.created_at || sale.createdAt;
+                    const isEditing = editingSaleId === sale.id;
+
+                    if (isEditing) {
+                      return (
+                        <div className="sale-row sale-edit-row" key={sale.id}>
+                          <div className="sale-media">
+                            {imagem ? (
+                              <img alt={nome} src={imagem} />
+                            ) : (
+                              <div className="sale-placeholder">{nome.slice(0, 2).toUpperCase()}</div>
+                            )}
+                          </div>
+                          <form className="sale-edit-form" onSubmit={(e) => handleSaleEditSubmit(e, sale.id)}>
+                            <span className="sale-edit-title">Editando venda #{sale.id}</span>
+                            <div className="sale-edit-fields">
+                              <label className="field">
+                                <span>Produto</span>
+                                <select
+                                  value={saleEditForm.produtoId}
+                                  onChange={(e) => updateSaleEditField('produtoId', e.target.value)}
+                                >
+                                  {products.map((p) => (
+                                    <option key={p.id} value={p.id}>{p.nome}</option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="field">
+                                <span>Quantidade</span>
+                                <input
+                                  min="1"
+                                  step="1"
+                                  type="number"
+                                  value={saleEditForm.quantidade}
+                                  onChange={(e) => updateSaleEditField('quantidade', e.target.value)}
+                                />
+                              </label>
+                              <label className="field">
+                                <span>Preco unitario</span>
+                                <input
+                                  min="0"
+                                  step="0.01"
+                                  type="number"
+                                  value={saleEditForm.precoUnitario}
+                                  onChange={(e) => updateSaleEditField('precoUnitario', e.target.value)}
+                                  placeholder="Opcional"
+                                />
+                              </label>
+                            </div>
+                            <div className="sale-edit-actions">
+                              <button
+                                className="primary-button"
+                                disabled={busyAction === `sale-edit-${sale.id}`}
+                                type="submit"
+                              >
+                                {busyAction === `sale-edit-${sale.id}` ? 'Salvando...' : 'Salvar'}
+                              </button>
+                              <button className="ghost-button" type="button" onClick={resetSaleEditor}>
+                                Cancelar
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div className="sale-row" key={sale.id}>
@@ -914,6 +1277,23 @@ function App() {
                         <div className="sale-time">
                           {createdAt ? formatDateTime(createdAt) : '—'}
                         </div>
+                        <div className="sale-actions">
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            onClick={() => handleEditSale(sale)}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            className="danger-button"
+                            disabled={busyAction === `cancel-sale-${sale.id}`}
+                            type="button"
+                            onClick={() => handleCancelSale(sale.id)}
+                          >
+                            {busyAction === `cancel-sale-${sale.id}` ? 'Cancelando...' : 'Cancelar'}
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -921,6 +1301,92 @@ function App() {
               ) : (
                 <div className="empty-state">Nenhuma venda registrada ainda.</div>
               )}
+            </section>
+            <section className="panel profile-panel" style={{ marginTop: '1.25rem' }}>
+              <div className="panel-heading">
+                <div>
+                  <span className="panel-kicker">Minha Conta</span>
+                  <h2>Perfil do Seller</h2>
+                </div>
+                <button
+                  className="ghost-button"
+                  type="button"
+                  onClick={showProfileEditor ? () => setShowProfileEditor(false) : handleOpenProfileEditor}
+                >
+                  {showProfileEditor ? 'Fechar' : 'Editar perfil'}
+                </button>
+              </div>
+
+              <div className="profile-info-grid">
+                <div className="profile-info-item">
+                  <span className="profile-info-label">Nome</span>
+                  <strong>{session.seller?.nome || '—'}</strong>
+                </div>
+                <div className="profile-info-item">
+                  <span className="profile-info-label">E-mail</span>
+                  <strong>{session.seller?.email || '—'}</strong>
+                </div>
+                <div className="profile-info-item">
+                  <span className="profile-info-label">Celular</span>
+                  <strong>{session.seller?.celular || '—'}</strong>
+                </div>
+                <div className="profile-info-item">
+                  <span className="profile-info-label">CNPJ</span>
+                  <strong>{session.seller?.cnpj || '—'}</strong>
+                </div>
+                <div className="profile-info-item">
+                  <span className="profile-info-label">Status</span>
+                  <span className={`badge badge-${(session.seller?.status || '').toLowerCase()}`}>
+                    {session.seller?.status || '—'}
+                  </span>
+                </div>
+              </div>
+
+              {showProfileEditor ? (
+                <form className="form-grid profile-form" onSubmit={handleProfileSubmit}>
+                  <label className="field">
+                    <span>Nome do mercado</span>
+                    <input
+                      value={profileForm.nome}
+                      onChange={(e) => updateProfileField('nome', e.target.value)}
+                      placeholder="Mercadinho Central"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>E-mail</span>
+                    <input
+                      type="email"
+                      value={profileForm.email}
+                      onChange={(e) => updateProfileField('email', e.target.value)}
+                      placeholder="mercado@email.com"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Celular</span>
+                    <input
+                      value={profileForm.celular}
+                      onChange={(e) => updateProfileField('celular', e.target.value)}
+                      placeholder="+5511999999999"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Nova senha</span>
+                    <input
+                      type="password"
+                      value={profileForm.senha}
+                      onChange={(e) => updateProfileField('senha', e.target.value)}
+                      placeholder="Deixe em branco para manter"
+                    />
+                  </label>
+                  <button
+                    className="primary-button field-span-2"
+                    disabled={busyAction === 'profile'}
+                    type="submit"
+                  >
+                    {busyAction === 'profile' ? 'Salvando perfil...' : 'Salvar alteracoes'}
+                  </button>
+                </form>
+              ) : null}
             </section>
           </>
         ) : (

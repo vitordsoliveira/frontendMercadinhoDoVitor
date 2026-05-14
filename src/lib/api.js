@@ -157,4 +157,40 @@ export const mercadinhoApi = {
       auth: true,
     });
   },
+  activateProduct(baseUrl, token, productId) {
+    return request(baseUrl, `/api/products/${productId}/activate`, {
+      method: 'PATCH',
+      token,
+      auth: true,
+    });
+  },
+  updateSale(baseUrl, token, saleId, payload) {
+    return request(baseUrl, `/api/sales/${saleId}`, {
+      method: 'PUT',
+      token,
+      auth: true,
+      body: payload,
+    });
+  },
+  deleteSale(baseUrl, token, saleId) {
+    return request(baseUrl, `/api/sales/${saleId}`, {
+      method: 'DELETE',
+      token,
+      auth: true,
+    });
+  },
+  getSellerProfile(baseUrl, token) {
+    return request(baseUrl, '/api/sellers/me', {
+      token,
+      auth: true,
+    });
+  },
+  updateSellerProfile(baseUrl, token, payload) {
+    return request(baseUrl, '/api/sellers/me', {
+      method: 'PUT',
+      token,
+      auth: true,
+      body: payload,
+    });
+  },
 };
