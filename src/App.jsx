@@ -1211,12 +1211,6 @@ function App() {
                     Criar conta
                   </button>
                 </p>
-                <p className="auth-footer auth-footer-sm">
-                  Tem um codigo de ativacao?{' '}
-                  <button className="auth-link" type="button" onClick={() => setAuthStep('activate')}>
-                    Ativar conta
-                  </button>
-                </p>
               </div>
             )}
 
