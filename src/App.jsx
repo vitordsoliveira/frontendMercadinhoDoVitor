@@ -58,7 +58,11 @@ const EMPTY_PROFILE_FORM = {
   nome: '',
   email: '',
   celular: '',
+};
+
+const EMPTY_PASSWORD_FORM = {
   senha: '',
+  codigo: '',
 };
 
 function readStorage(key, fallbackValue) {
@@ -149,6 +153,8 @@ function App() {
   const [saleEditForm, setSaleEditForm] = useState(EMPTY_SALE_EDIT_FORM);
   const [profileForm, setProfileForm] = useState(EMPTY_PROFILE_FORM);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
+  const [passwordStep, setPasswordStep] = useState('idle');
+  const [passwordForm, setPasswordForm] = useState(EMPTY_PASSWORD_FORM);
 
   useEffect(() => {
     saveStorage(SESSION_STORAGE_KEY, session);
@@ -548,6 +554,10 @@ function App() {
     setProfileForm((currentValue) => ({ ...currentValue, [fieldName]: value }));
   }
 
+  function updatePasswordField(fieldName, value) {
+    setPasswordForm((currentValue) => ({ ...currentValue, [fieldName]: value }));
+  }
+
   function resetSaleEditor() {
     setEditingSaleId(null);
     setSaleEditForm(EMPTY_SALE_EDIT_FORM);
@@ -609,7 +619,6 @@ function App() {
       nome: session.seller?.nome || '',
       email: session.seller?.email || '',
       celular: session.seller?.celular || '',
-      senha: '',
     });
     setShowProfileEditor(true);
 
@@ -620,7 +629,6 @@ function App() {
         nome: seller.nome || session.seller?.nome || '',
         email: seller.email || session.seller?.email || '',
         celular: seller.celular || session.seller?.celular || '',
-        senha: '',
       });
     } catch {
       // usa dados da sessao local
@@ -641,10 +649,6 @@ function App() {
         celular: profileForm.celular.trim(),
       };
 
-      if (profileForm.senha.trim()) {
-        payload.senha = profileForm.senha.trim();
-      }
-
       const data = await mercadinhoApi.updateSellerProfile(apiUrl, session.accessToken, payload);
       showFeedback('success', data.message || 'Perfil atualizado com sucesso.');
 
@@ -654,8 +658,33 @@ function App() {
           seller: { ...currentValue.seller, ...data.seller },
         }));
       }
+    });
+  }
 
-      setProfileForm((currentValue) => ({ ...currentValue, senha: '' }));
+  async function handleRequestPasswordChange() {
+    await runAction('request-password-change', async () => {
+      await mercadinhoApi.requestPasswordChange(apiUrl, session.accessToken);
+      setPasswordStep('code-sent');
+      showFeedback('success', 'Codigo enviado! Verifique seu WhatsApp.');
+    });
+  }
+
+  async function handlePasswordChangeSubmit(event) {
+    event.preventDefault();
+
+    await runAction('password-change', async () => {
+      if (!passwordForm.senha.trim() || !passwordForm.codigo.trim()) {
+        throw new Error('Informe a nova senha e o codigo recebido.');
+      }
+
+      const data = await mercadinhoApi.updateSellerProfile(apiUrl, session.accessToken, {
+        senha: passwordForm.senha.trim(),
+        codigo: passwordForm.codigo.trim(),
+      });
+
+      showFeedback('success', data.message || 'Senha alterada com sucesso.');
+      setPasswordForm(EMPTY_PASSWORD_FORM);
+      setPasswordStep('idle');
     });
   }
 
@@ -1149,15 +1178,76 @@ function App() {
                         <span>Celular</span>
                         <input value={profileForm.celular} onChange={(e) => updateProfileField('celular', e.target.value)} placeholder="+5511999999999" />
                       </label>
-                      <label className="field">
-                        <span>Nova senha</span>
-                        <input type="password" value={profileForm.senha} onChange={(e) => updateProfileField('senha', e.target.value)} placeholder="Deixe em branco para manter" />
-                      </label>
                       <button className="primary-button field-span-2" disabled={busyAction === 'profile'} type="submit">
                         {busyAction === 'profile' ? 'Salvando perfil...' : 'Salvar alteracoes'}
                       </button>
                     </form>
                   ) : null}
+
+                  <div className="password-change-section">
+                    <div className="panel-heading">
+                      <div>
+                        <span className="panel-kicker">Seguranca</span>
+                        <h2>Trocar senha</h2>
+                      </div>
+                      {passwordStep === 'code-sent' && (
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={() => { setPasswordStep('idle'); setPasswordForm(EMPTY_PASSWORD_FORM); }}
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+
+                    {passwordStep === 'idle' ? (
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        disabled={busyAction === 'request-password-change'}
+                        onClick={handleRequestPasswordChange}
+                      >
+                        <i className="bi bi-whatsapp" style={{ marginRight: '0.4rem' }} />
+                        {busyAction === 'request-password-change' ? 'Enviando codigo...' : 'Solicitar codigo via WhatsApp'}
+                      </button>
+                    ) : (
+                      <>
+                        <div className="password-change-notice">
+                          <i className="bi bi-whatsapp" />
+                          <span>Codigo enviado! Verifique seu WhatsApp e insira abaixo para confirmar a troca.</span>
+                        </div>
+                        <form className="form-grid profile-form" onSubmit={handlePasswordChangeSubmit}>
+                          <label className="field">
+                            <span>Nova senha</span>
+                            <input
+                              type="password"
+                              value={passwordForm.senha}
+                              onChange={(e) => updatePasswordField('senha', e.target.value)}
+                              placeholder="Crie uma nova senha"
+                              autoComplete="new-password"
+                            />
+                          </label>
+                          <label className="field">
+                            <span>Codigo recebido</span>
+                            <input
+                              value={passwordForm.codigo}
+                              onChange={(e) => updatePasswordField('codigo', e.target.value)}
+                              placeholder="1234"
+                              autoComplete="one-time-code"
+                            />
+                          </label>
+                          <button
+                            className="primary-button field-span-2"
+                            disabled={busyAction === 'password-change'}
+                            type="submit"
+                          >
+                            {busyAction === 'password-change' ? 'Confirmando...' : 'Confirmar nova senha'}
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </div>
                 </section>
               )}
 

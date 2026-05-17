@@ -185,6 +185,13 @@ export const mercadinhoApi = {
       auth: true,
     });
   },
+  requestPasswordChange(baseUrl, token) {
+    return request(baseUrl, '/api/sellers/me/request-password-change', {
+      method: 'POST',
+      token,
+      auth: true,
+    });
+  },
   updateSellerProfile(baseUrl, token, payload) {
     return request(baseUrl, '/api/sellers/me', {
       method: 'PUT',
