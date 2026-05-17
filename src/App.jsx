@@ -1208,7 +1208,6 @@ function App() {
                         disabled={busyAction === 'request-password-change'}
                         onClick={handleRequestPasswordChange}
                       >
-                        <i className="bi bi-whatsapp" style={{ marginRight: '0.4rem' }} />
                         {busyAction === 'request-password-change' ? 'Enviando codigo...' : 'Enviar Código'}
                       </button>
                     ) : (
