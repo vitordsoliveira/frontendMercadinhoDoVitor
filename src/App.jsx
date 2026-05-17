@@ -1209,13 +1209,13 @@ function App() {
                         onClick={handleRequestPasswordChange}
                       >
                         <i className="bi bi-whatsapp" style={{ marginRight: '0.4rem' }} />
-                        {busyAction === 'request-password-change' ? 'Enviando codigo...' : 'Solicitar codigo via WhatsApp'}
+                        {busyAction === 'request-password-change' ? 'Enviando codigo...' : 'Enviar Código'}
                       </button>
                     ) : (
                       <>
                         <div className="password-change-notice">
                           <i className="bi bi-whatsapp" />
-                          <span>Codigo enviado! Verifique seu WhatsApp e insira abaixo para confirmar a troca.</span>
+                          <span>Codigo enviado! Verifique e digite no campo.</span>
                         </div>
                         <form className="form-grid profile-form" onSubmit={handlePasswordChangeSubmit}>
                           <label className="field">
